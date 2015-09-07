@@ -1,7 +1,7 @@
 module ResponseCodes
   def self.get_error_send_sms(error_code)
     # Based on http://www.resalty.net/files/RESALTY.NET_HTTP_API.pdf
-    case error_code
+    { code: error_code.to_i }.merge (case error_code
       when 1
         { error: 'General Wrong API calling' }
       when 2
@@ -24,38 +24,38 @@ module ResponseCodes
         { error: 'You have not enough balance to send this message' }
       else
         { error: 'Unknown error code' }
-    end
+    end)
   end
 
   def self.get_error(error_code)
-    case error_code
+    { code: error_code.to_i }.merge (case error_code
       when '10'
-        { error: 'Wrong API parameter(s) for [balance], Wrong parameter', code: error_code.to_i }
+        { error: 'Wrong API parameter(s) for [balance], Wrong parameter' }
       when '11'
-        { error: 'Wrong API parameter(s) for [balance], Wrong password or username', code: error_code.to_i }
+        { error: 'Wrong API parameter(s) for [balance], Wrong password or username' }
       when '12'
-        { error: 'Wrong API parameter(s) for [balance], Wrong parameter', code: error_code.to_i }
+        { error: 'Wrong API parameter(s) for [balance], Wrong parameter' }
       when '13'
-        { error: 'Wrong API parameter(s) for [balance], Wrong Message ID', code: error_code.to_i }
+        { error: 'Wrong API parameter(s) for [balance], Wrong Message ID' }
       else
-        { error: 'Unknown error code', code: error_code.to_i }
-    end
+        { error: 'Unknown error code' }
+    end)
   end
 
   def self.get_status(status)
-    case status
+    { code: status.to_i }.merge (case status
       when '01'
-        { result: 'The message is on the send queue', code: status.to_i }
+        { result: 'The message is on the send queue' }
       when '02'
-        { result: 'The message has been failed', code: status.to_i }
+        { result: 'The message has been failed' }
       when '03'
-        { result: 'The message has been rejected', code: status.to_i }
+        { result: 'The message has been rejected' }
       when '04'
-        { result: 'The message has been stopped', code: status.to_i }
+        { result: 'The message has been stopped' }
       when '05'
-        { result: 'The message has been sent successfully', code: status.to_i }
+        { result: 'The message has been sent successfully' }
       else
-        { error: 'Unknown status', code: status.to_i }
-    end
+        { error: 'Unknown status' }
+    end)
   end
 end
