@@ -1,119 +1,88 @@
 require 'message_parser'
-require 'mobile_number_normalizer'
+require 'normalizer'
+require 'response_codes'
 
 module SmsSenderResalty
-  require "net/http"
-  require "uri"
+  require 'net/http'
 
   include MessageParser
-  include MobileNumberNormalizer
+  include Normalizer
+  include ResponseCodes
 
   # According to documentation: http://www.resalty.net/files/RESALTY.NET_HTTP_API.pdf
-  def self.send_sms(userid, password, to, sender, message)
-    to = MobileNumberNormalizer.normalize_number(to)
-    uri = URI.parse("http://resalty.net/api/sendSMS.php")
-    message=message.encode(Encoding::UTF_8)
-    url_params = {
-      "userid" => userid,
-      "password" => password,
-      "to" => to,
-      "sender" => sender,
-      "msg" => message,
-      "encoding" => "utf-8"
+  def self.send_sms(userid, password, mobile_number, sender, message)
+    mobile_number_normalized = Normalizer.normalize_number(mobile_number)
+    message_normalized = Normalizer.normalize_message(message)
+    http = Net::HTTP.new('resalty.net', 80)
+    path = '/api/sendSMS.php'
+    params = {
+      'userid' => userid,
+      'password' => password,
+      'to' => mobile_number_normalized,
+      'sender' => sender,
+      'msg' => message_normalized,
+      'encoding' => 'utf-8'
     }
-    response = Net::HTTP.post_form(uri, url_params)
-    # Parse response
-    error_number = MessageParser.extract_number(response.body, "Error")
-    if !error_number.nil?
-      if error_number == 0
-        return {message_id: MessageParser.extract_number(response.body, "MessageID"), code: 0}
-      end
-      result = case error_number 
-        when 1
-          {error: "General Wrong API calling", code: 1}
-        when 2
-          {error: "Wrong API parameter(s) for [send]", code: 2}
-        when 3
-          {error: "Username or password is incorrect or you don't have the permission to use this service", code: 3}
-        when 4
-          {error: "Sender name must not exceed 11 characters or 16 numbers", code: 4}
-        when 5
-          {error: "The receiver number must consist of numbers only without + or leading zeros", code: 5}
-        when 6
-          {error: "Sender name must be in English letters only", code: 6}
-        when 7
-          {error: "You cannot send to this amount at the same time, please divide this messaging to many groups", code: 7}
-        when 8
-          {error: "It is not allowed to use sender name you have entered, please choose another one", code: 8}
-        when 9
-          {error: "The message content you want to send is not allowed... If you think this is error, please contact technical support", code: 9}
-        when 10
-          {error: "You have not enough balance to send this message", code: 10}
-      end
+    body = URI.encode_www_form(params)
+    headers = { 'Content-Type' => 'application/x-www-form-urlencoded' }
+    response = http.post(path, body, headers)
+    error_number = MessageParser.extract_number(response.body, 'Error')
+    if response.code.to_i == 200 && !error_number.nil? && error_number == 0
+      return { message_id: MessageParser.extract_number(response.body, 'MessageID'), code: 0 }
+    elsif response.code.to_i == 200 && !error_number.nil?
+      result = ResponseCodes.get_error_send_sms(error_number)
       raise result[:error]
       return result
-    else
-      result = {error: "Unexpected response: " + response.body.to_s}
+    elsif response.code.to_i == 200
+      result = { error: 'Unexpected response: ' + response.body.to_s }
+      raise result[:error]
+      return result
+    else 
+      result = { error: 'Unexpected http response code: ' + response.code.to_s + ' Body: ' + response.body }
       raise result[:error]
       return result
     end
   end
 
   def self.get_balance(userid, password)
-    uri = URI.parse("http://resalty.net/api/getBalance.php")
-    url_params = {
-      "userid" => userid,
-      "password" => password
+    http = Net::HTTP.new('resalty.net', 80)
+    path = '/api/getBalance.php'
+    params = {
+      'userid' => userid,
+      'password' => password
     }
-    response = Net::HTTP.post_form(uri, url_params)
-    # Parse response
+    body = URI.encode_www_form(params)
+    headers = { 'Content-Type' => 'application/x-www-form-urlencoded' }
+    response = http.post(path, body, headers)
     if response.body.starts_with?("ERROR")
-      result = case response.body[5..6]
-        when "10"
-          {error: "Wrong API parameter(s) for [balance], Wrong parameter", code: 10}
-        when "11"
-          {error: "Wrong API parameter(s) for [balance], Wrong password or username", code: 11}
-      end
+      result = ResponseCodes.get_error(response.body[5..6])
       raise result[:error]
       return result
     else
-      return {balance: response.body.to_i, code: nil}
+      return { balance: response.body.to_i, code: nil }
     end
   end
 
   def self.query_message(userid, password, msgid)
-    uri = URI.parse("http://resalty.net/api/msgQuery.php")
-    url_params = {
-      "userid" => userid,
-      "password" => password,
-      "msgid" => msgid
+    http = Net::HTTP.new('resalty.net', 80)
+    path = '/api/msgQuery.php'
+    params = {
+      'userid' => userid,
+      'password' => password,
+      'msgid' => msgid
     }
-    response = Net::HTTP.post_form(uri, url_params)
-    if response.body.starts_with?("STATUS")
-      result = case response.body[6..7]
-        when "01"
-          {result: "The message is on the send queue", code: 1}
-        when "02"
-          {result: "The message has been failed", code: 2}
-        when "03"
-          {result: "The message has been rejected", code: 3}
-        when "04"
-          {result: "The message has been stopped", code: 4}
-        when "05"
-          {result: "The message has been sent successfully", code: 5}
-      end
+    body = URI.encode_www_form(params)
+    headers = { 'Content-Type' => 'application/x-www-form-urlencoded' }
+    response = http.post(path, body, headers)
+    if response.code.to_i == 200 && !response.body.blank? && response.body.starts_with?("STATUS")
+      result = ResponseCodes.get_status(response.body[6..7])
       return result
-    elsif response.body.starts_with?("ERROR")
-      result = case response.body[5..6]
-        when "12"
-          {error: "Wrong API parameter(s) for [balance], Wrong parameter", code: 12}
-        when "13"
-          {error: "Wrong API parameter(s) for [balance], Wrong Message ID", code: 13}
-      end
+    elsif response.code.to_i == 200 && !response.body.blank? && response.body.starts_with?("ERROR")
+      result = ResponseCodes.get_error(response.body[5..6])
       raise result[:error]
       return result
     else
-      result = {error: "Unexpected response: " + response.body.to_s}
+      result = { error: 'Unexpected http response code: ' + response.code.to_s + ' Body: ' + response.body }
       raise result[:error]
       return result
     end
