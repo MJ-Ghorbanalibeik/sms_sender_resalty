@@ -1,7 +1,6 @@
 PATH
   remote: .
   specs:
-    sms_sender_resalty (0.5.1)
 
 GEM
   remote: https://rubygems.org/
