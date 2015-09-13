@@ -10,14 +10,14 @@ module SmsSenderResalty
   include ResponseCodes
 
   # According to documentation: http://www.resalty.net/files/RESALTY.NET_HTTP_API.pdf
-  def self.send_sms(userid, password, mobile_number, sender, message)
+  def self.send_sms(credentials, mobile_number, message, sender, options = nil)
     mobile_number_normalized = Normalizer.normalize_number(mobile_number)
     message_normalized = Normalizer.normalize_message(message)
     http = Net::HTTP.new('resalty.net', 80)
     path = '/api/sendSMS.php'
     params = {
-      'userid' => userid,
-      'password' => password,
+      'userid' => credentials[:username],
+      'password' => credentials[:password],
       'to' => mobile_number_normalized,
       'sender' => sender,
       'msg' => message_normalized,
@@ -44,12 +44,12 @@ module SmsSenderResalty
     end
   end
 
-  def self.get_balance(userid, password)
+  def self.get_balance(credentials)
     http = Net::HTTP.new('resalty.net', 80)
     path = '/api/getBalance.php'
     params = {
-      'userid' => userid,
-      'password' => password
+      'userid' => credentials[:username],
+      'password' => credentials[:password]
     }
     body = URI.encode_www_form(params)
     headers = { 'Content-Type' => 'application/x-www-form-urlencoded' }
@@ -63,12 +63,12 @@ module SmsSenderResalty
     end
   end
 
-  def self.query_message(userid, password, msgid)
+  def self.query_message(credentials, msgid)
     http = Net::HTTP.new('resalty.net', 80)
     path = '/api/msgQuery.php'
     params = {
-      'userid' => userid,
-      'password' => password,
+      'userid' => credentials[:username],
+      'password' => credentials[:password],
       'msgid' => msgid
     }
     body = URI.encode_www_form(params)
